@@ -24,6 +24,8 @@ parser.add_argument('--features', type=str, default='data/ActivityNet/sub_activi
                     help='location of the video features')
 parser.add_argument('--labels', type=str, default='data/ActivityNet/labels.hdf5',
                     help='location of the proposal labels')
+parser.add_argument('--captions_path', type=str, default='data/ActivityNet/captions',
+                    help='location of the proposal labels')
 parser.add_argument('--vid-ids', type=str, default='data/ActivityNet/video_ids.json',
                     help='location of the video ids')
 parser.add_argument('--save', type=str, default='data/models/default',
@@ -129,9 +131,14 @@ with open(os.path.join(args.save, 'args.json'), 'w') as f:
 print "| Loading data into corpus: %s" % args.data
 dataset = getattr(data, args.dataset)(args)
 w1 = dataset.w1
-train_dataset = TrainSplit(dataset.training_ids, dataset, args)
-val_dataset = EvaluateSplit(dataset.validation_ids, dataset, args)
-train_val_dataset = EvaluateSplit(dataset.training_ids, dataset, args)
+#train_dataset = TrainSplit(dataset.training_ids, dataset, args)
+#val_dataset = EvaluateSplit(dataset.validation_ids, dataset, args)
+#train_val_dataset = EvaluateSplit(dataset.training_ids, dataset, args)
+
+print len(dataset.train_ids), len(dataset.val_2_ids)
+train_dataset = TrainSplit(dataset.train_ids, dataset, args)
+val_dataset = EvaluateSplit(dataset.val_2_ids, dataset, args)
+train_val_dataset = EvaluateSplit(dataset.train_ids, dataset, args)
 print "| Dataset created"
 train_loader = DataLoader(train_dataset, shuffle=args.shuffle, batch_size=args.batch_size, num_workers=args.nthreads,
                           collate_fn=train_dataset.collate_fn)

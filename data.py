@@ -21,12 +21,14 @@ class ProposalDataset(object):
         """
         assert os.path.exists(args.data)
         assert os.path.exists(args.features)
-        self.data = json.load(open(args.data))
+        #self.data = json.load(open(args.data))
         self.features = h5py.File(args.features)
-        if not os.path.exists(args.labels) or not os.path.exists(args.vid_ids):
-            self.generate_labels(args)
-        self.labels = h5py.File(args.labels)
-        self.vid_ids = json.load(open(args.vid_ids))
+        self.captions_path = args.captions_path
+        self.caption_data = {}
+        #if not os.path.exists(args.labels) or not os.path.exists(args.vid_ids):
+        #    self.generate_labels(args)
+        #self.labels = h5py.File(args.labels)
+        #self.vid_ids = json.load(open(args.vid_ids))
 
     def generate_labels(self, args):
         """
@@ -60,7 +62,7 @@ class ProposalDataset(object):
         start, end = timestamp
         start = min(int(round(start / duration * nfeats)), nfeats - 1)
         end = max(int(round(end / duration * nfeats)), start + 1)
-        return start, end
+        return int(start), int(end)
 
     def compute_proposals_stats(self, prop_captured):
         """
@@ -88,12 +90,30 @@ class ActivityNet(ProposalDataset):
         super(self.__class__, self).__init__(args)
         self.durations = {}
         self.gt_times = {}
+        self.split_names = ['train' , 'val_2']
+        self.videoid_split_mappings = {}
+        for split_name in self.split_names:
+            print 'Loading', split_name
+            #vid_ids = json.load(open(os.path.join(self.captions_path, '%s_ids.json' %(split_name)), 'r'))
+            #for video_id in self.vid_ids[split]:
+            split_data = json.load(open(os.path.join(self.captions_path, '%s.json' %(split_name))))
+            self.caption_data[split_name] = split_data
+            for video_id in split_data.keys():
+                #if video_id == 'v_thvpt_luxti':
+                #    continue
+                #self.durations[video_id] = self.data['database'][video_id]['duration']
+                self.durations[video_id] = self.caption_data[split_name][video_id]['duration']
+                #self.gt_times[video_id] = [ann['segment'] for ann in self.data['database'][video_id]['annotations']]
+                #self.gt_times[video_id] = [ann['segment'] for ann in self.data['database'][video_id]['annotations']]
+                self.gt_times[video_id] = self.caption_data[split_name][video_id]['timestamps']
+                self.videoid_split_mappings[video_id] = split_name
+            setattr(self, split_name + '_ids', split_data.keys())
+            print split_name, split_data.keys()[:5], len(split_data.keys())
+        if not os.path.exists(args.labels) or not os.path.exists(args.vid_ids):
+            self.generate_labels(args)
+        self.labels = h5py.File(args.labels)
+        self.vid_ids = json.load(open(args.vid_ids))
         self.w1 = self.vid_ids['w1']
-        for split in ['training', 'validation', 'testing']:
-            setattr(self, split + '_ids', self.vid_ids[split])
-            for video_id in self.vid_ids[split]:
-                self.durations[video_id] = self.data['database'][video_id]['duration']
-                self.gt_times[video_id] = [ann['segment'] for ann in self.data['database'][video_id]['annotations']]
 
     def generate_labels(self, args):
         """
@@ -101,18 +121,29 @@ class ActivityNet(ProposalDataset):
         """
         print "| Generating labels for action proposals"
         label_dataset = h5py.File(args.labels, 'w')
-        bar = progressbar.ProgressBar(maxval=len(self.data['database'].keys())).start()
+        #bar = progressbar.ProgressBar(maxval=len(self.data['database'].keys())).start()
+        bar = progressbar.ProgressBar(maxval=len(self.videoid_split_mappings.keys())).start()
         prop_captured = []
         prop_pos_examples = []
-        video_ids = self.data['database'].keys()
-        split_ids = {'training': [], 'validation': [], 'testing': [],
-                     'w1': []}  # maybe find a better name since w1 is not a split
+        #video_ids = self.data['database'].keys()
+        video_ids = []
+        for split_name in self.caption_data.keys():
+            print 'Populating video_ids', split_name
+            video_ids.extend(self.caption_data[split_name].keys())
+        split_ids = {'w1':[]}
+        for split_name in self.split_names:
+            split_ids[split_name] = []
+        #split_ids = {'training': [], 'validation': [], 'testing': [],
+        #             'w1': []}  # maybe find a better name since w1 is not a split
         for progress, video_id in enumerate(video_ids):
-            features = self.features['v_' + video_id]['c3d_features']
+            #features = self.features['v_' + video_id]['c3d_features']
+            features = self.features[video_id]['c3d_features']
             nfeats = features.shape[0]
-            duration = self.data['database'][video_id]['duration']
-            annotations = self.data['database'][video_id]['annotations']
-            timestamps = [ann['segment'] for ann in annotations]
+            #duration = self.data['database'][video_id]['duration']
+            #annotations = self.data['database'][video_id]['annotations']
+            #timestamps = [ann['segment'] for ann in annotations]
+            duration = self.durations[video_id]
+            timestamps = self.gt_times[video_id]
             featstamps = [self.timestamp_to_featstamp(x, nfeats, duration) for x in timestamps]
             nb_prop = len(featstamps)
             for i in range(nb_prop):
@@ -128,7 +159,8 @@ class ActivityNet(ProposalDataset):
                     prop_captured += [0.]
                 continue
                 # we keep track of the videos kept to update ids
-            split_ids[self.data['database'][video_id]['subset']] += [video_id]
+            #split_ids[self.data['database'][video_id]['subset']] += [video_id]
+            split_ids[self.videoid_split_mappings[video_id]] += [video_id]
             labels = np.zeros((nfeats, args.K))
             gt_captured = []
             for t in range(nfeats):
@@ -138,11 +170,14 @@ class ActivityNet(ProposalDataset):
                         labels[t, k] = 1
                         gt_captured += [gt_index]
             prop_captured += [1. * len(np.unique(gt_captured)) / len(timestamps)]
-            if self.data['database'][video_id]['subset'] == 'training':
+            #if self.data['database'][video_id]['subset'] == 'training':
+            if self.videoid_split_mappings[video_id] == 'train':
                 prop_pos_examples += [np.sum(labels, axis=0) * 1. / nfeats]
             video_dataset = label_dataset.create_dataset(video_id, (nfeats, args.K), dtype='f')
             video_dataset[...] = labels
             bar.update(progress)
+            if video_id == 'v_thvpt_luxti':
+                print video_id, np.array(label_dataset.get(video_id)).shape
         split_ids['w1'] = np.array(prop_pos_examples).mean(axis=0).tolist()  # this will be used to compute the loss
         json.dump(split_ids, open(args.vid_ids, 'w'))
         self.compute_proposals_stats(np.array(prop_captured))
@@ -207,7 +242,10 @@ class TrainSplit(DataSplit):
     def __getitem__(self, index):
         # Now let's get the video_id
         video_id = self.video_ids[index]
-        features = self.features['v_' + video_id]['c3d_features']
+        #features = self.features['v_' + video_id]['c3d_features']
+        #print 'Loading', video_id
+        features = self.features[video_id]['c3d_features']
+        #print 'Loaded', video_id, features.shape
         labels = self.labels[video_id]
         nfeats = features.shape[0]
         nWindows = max(1, nfeats - self.W + 1)
@@ -265,7 +303,8 @@ class EvaluateSplit(DataSplit):
     def __getitem__(self, index):
         # Let's get the video_id and the features and labels
         video_id = self.video_ids[index]
-        features = self.features['v_' + video_id]['c3d_features']
+        #features = self.features['v_' + video_id]['c3d_features']
+        features = self.f[video_id]['c3d_features']
         duration = self.durations[video_id]
         gt_times = self.gt_times[video_id]
 
