@@ -18,8 +18,8 @@ parser = argparse.ArgumentParser(description='video features to LSTM Language Mo
 # Location of data
 parser.add_argument('--dataset', type=str, default='ActivityNet',
                     help='Name of the data class to use from data.py')
-parser.add_argument('--data', type=str, default='data/ActivityNet/activity_net.v1-3.min.json',
-                    help='location of the dataset')
+#parser.add_argument('--data', type=str, default='data/ActivityNet/activity_net.v1-3.min.json',
+#                    help='location of the dataset')
 parser.add_argument('--features', type=str, default='data/ActivityNet/sub_activitynet_v1-3.c3d.hdf5',
                     help='location of the video features')
 parser.add_argument('--labels', type=str, default='data/ActivityNet/labels.hdf5',
@@ -34,9 +34,9 @@ parser.add_argument('--save-every', type=int, default=1,
                     help='Save the model every x epochs')
 parser.add_argument('--clean', dest='clean', action='store_true',
                     help='Delete the models and the log files in the folder')
-parser.add_argument('--W', type=int, default=128,
+parser.add_argument('--W', type=int, default=512,
                     help='The rnn kernel size to use to get the proposal features')
-parser.add_argument('--K', type=int, default=64,
+parser.add_argument('--K', type=int, default=256,
                     help='Number of proposals')
 parser.add_argument('--max-W', type=int, default=256,
                     help='maximum number of windows to return per video')
@@ -128,7 +128,7 @@ with open(os.path.join(args.save, 'args.json'), 'w') as f:
 # Load data
 ###############################################################################
 
-print "| Loading data into corpus: %s" % args.data
+#print "| Loading data into corpus: %s" % args.data
 dataset = getattr(data, args.dataset)(args)
 w1 = dataset.w1
 #train_dataset = TrainSplit(dataset.training_ids, dataset, args)
