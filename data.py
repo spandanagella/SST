@@ -163,7 +163,7 @@ class ActivityNet(ProposalDataset):
             nb_prop = len(featstamps)
             for i in range(nb_prop):
                 if (featstamps[nb_prop - i - 1][1] - featstamps[nb_prop - i - 1][0]) > args.K / args.iou_threshold:
-                    print 'Deleting since large proposal', featstamps[nb_prop - i - 1][1] - featstamps[nb_prop - i - 1][0], args.K, args.K / args.iou_threshold
+                    #print 'Deleting since large proposal', featstamps[nb_prop - i - 1][1] - featstamps[nb_prop - i - 1][0], args.K, args.K / args.iou_threshold
                     # we discard these proposals since they will not be captured for this value of K 
                     del featstamps[nb_prop - i - 1]
             if len(featstamps) == 0:

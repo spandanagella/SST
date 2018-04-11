@@ -34,9 +34,9 @@ parser.add_argument('--save-every', type=int, default=1,
                     help='Save the model every x epochs')
 parser.add_argument('--clean', dest='clean', action='store_true',
                     help='Delete the models and the log files in the folder')
-parser.add_argument('--W', type=int, default=512,
+parser.add_argument('--W', type=int, default=256,
                     help='The rnn kernel size to use to get the proposal features')
-parser.add_argument('--K', type=int, default=256,
+parser.add_argument('--K', type=int, default=128,
                     help='Number of proposals')
 parser.add_argument('--max-W', type=int, default=256,
                     help='maximum number of windows to return per video')
@@ -64,7 +64,7 @@ parser.add_argument('--weight-decay', type=float, default=0,
                     help='SGD weight decay')
 parser.add_argument('--epochs', type=int, default=100,
                     help='upper epoch limit')
-parser.add_argument('--batch-size', type=int, default=20,
+parser.add_argument('--batch-size', type=int, default=8,
                     help='batch size')
 parser.add_argument('--seed', type=int, default=1111,
                     help='random seed')
@@ -99,8 +99,10 @@ assert (args.W > args.K)
 if not os.path.isdir(args.save):
     os.makedirs(args.save)
 
+
 # Argument hack
 args.shuffle = args.shuffle != 0
+print args
 
 # Clean the directory
 if args.clean:
@@ -249,6 +251,8 @@ def train(epoch, w1):
             features = features.cuda()
             labels = labels.cuda()
             masks = masks.cuda()
+        if batch_idx == 0:
+            print features.size(), labels.size()
         features = Variable(features)
         optimizer.zero_grad()
         proposals = model(features)
