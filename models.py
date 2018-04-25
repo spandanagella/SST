@@ -36,11 +36,11 @@ class SST(nn.Module):
         self.rnn.dropout = self.rnn_dropout
 
     def forward(self, features):
-        print 'input features', features.size()
+        #print 'input features', features.size()
         N, T, _ = features.size()
         rnn_output, _ = self.rnn(features)
         rnn_output = rnn_output.contiguous()
-        print 'rnn output', rnn_output.size()
+        #print 'rnn output', rnn_output.size()
         rnn_output = rnn_output.view(rnn_output.size(0) * rnn_output.size(1), rnn_output.size(2))
         outputs = torch.sigmoid(self.scores(rnn_output))
         return outputs.view(N, T, self.K)

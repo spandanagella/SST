@@ -25,6 +25,7 @@ class ProposalDataset(object):
         self.features = h5py.File(args.features)
         self.captions_path = args.captions_path
         self.caption_data = {}
+        self.feature_type = '%s_features' %(args.feature_type.lower())
         #if not os.path.exists(args.labels) or not os.path.exists(args.vid_ids):
         #    self.generate_labels(args)
         #self.labels = h5py.File(args.labels)
@@ -94,6 +95,7 @@ class ActivityNet(ProposalDataset):
         self.videoid_split_mappings = {}
         self.vid_ids = None
         if os.path.exists(args.vid_ids):
+            print 'Loading', args.vid_ids
             self.vid_ids = json.load(open(args.vid_ids))
         for split_name in self.split_names:
             print 'Loading', split_name
@@ -102,29 +104,35 @@ class ActivityNet(ProposalDataset):
             self.caption_data[split_name] = split_data
             if self.vid_ids is not None:
                split_video_ids = self.vid_ids[split_name]
+               print 'Loading ids from pre-computed vid_ids', split_name, len(split_video_ids)
             else:
                split_video_ids = split_data.keys()
+               print 'Loading ids from caption files', split_name, len(split_data.keys())
+            #print 'features keys:', self.features.keys()[:5],  'split video ids used', split_video_ids[:5]
+            features_video_keys = self.features.keys()
+            #print len([key for key in split_video_ids if key not in features_video_keys]), 'videos with no features'
 
             for video_id in split_video_ids:
                 #if video_id == 'v_thvpt_luxti':
                 #    continue
                 #self.durations[video_id] = self.data['database'][video_id]['duration']
                 try:
-                    xsize = self.features[video_id]['c3d_features'].shape
+                    xsize = self.features[video_id][self.feature_type].shape
                 except:
-                    print 'video features do not exist', video_id 
+                    print 'video features do not exist', video_id , self.feature_type
                     continue
                 self.durations[video_id] = self.caption_data[split_name][video_id]['duration']
                 #self.gt_times[video_id] = [ann['segment'] for ann in self.data['database'][video_id]['annotations']]
                 #self.gt_times[video_id] = [ann['segment'] for ann in self.data['database'][video_id]['annotations']]
                 self.gt_times[video_id] = self.caption_data[split_name][video_id]['timestamps']
                 self.videoid_split_mappings[video_id] = split_name
-            setattr(self, split_name + '_ids', split_data.keys())
-            print split_name, split_data.keys()[:5], len(split_data.keys())
+            setattr(self, split_name + '_ids', split_video_ids)
+            print split_name, len(split_data.keys()), len(getattr(self, split_name+ '_ids'))
         if not os.path.exists(args.labels) or not os.path.exists(args.vid_ids):
             self.generate_labels(args)
             self.vid_ids = json.load(open(args.vid_ids))
         self.labels = h5py.File(args.labels)
+        self.vid_ids = json.load(open(args.vid_ids))
         print 'Videos in labels, features', len(self.labels.keys()), len(self.features.keys())
         self.w1 = self.vid_ids['w1']
         print self.w1
@@ -133,7 +141,7 @@ class ActivityNet(ProposalDataset):
         """
         Overwriting parent class to generate action proposal labels
         """
-        print "| Generating labels for action proposals"
+        print "| Generating labels for action proposals, loading features for", self.feature_type
         label_dataset = h5py.File(args.labels, 'w')
         #bar = progressbar.ProgressBar(maxval=len(self.data['database'].keys())).start()
         bar = progressbar.ProgressBar(maxval=len(self.videoid_split_mappings.keys())).start()
@@ -152,7 +160,11 @@ class ActivityNet(ProposalDataset):
         videos_labeled = 0
         for progress, video_id in enumerate(video_ids):
             #features = self.features['v_' + video_id]['c3d_features']
-            features = self.features[video_id]['c3d_features']
+            try:
+                features = self.features[video_id][self.feature_type]
+            except:
+                print 'Features do not exist', video_id, self.feature_type
+                continue
             nfeats = features.shape[0]
             #duration = self.data['database'][video_id]['duration']
             #annotations = self.data['database'][video_id]['annotations']
@@ -168,10 +180,10 @@ class ActivityNet(ProposalDataset):
                     del featstamps[nb_prop - i - 1]
             if len(featstamps) == 0:
                 if len(timestamps) == 0:
-                    print 'no proposals il this video', video_id
+                    #print 'no proposals il this video', video_id
                     prop_captured += [-1.]
                 else:
-                    print 'no proposals in this video since all have a length above threhold', video_id, self.videoid_split_mappings[video_id], timestamps
+                    #print 'no proposals in this video since all have a length above threhold', video_id, self.videoid_split_mappings[video_id], timestamps
                     # no proposals captured in this video since all have a length above threshold
                     prop_captured += [0.]
                 continue
@@ -224,7 +236,9 @@ class DataSplit(Dataset):
         self.W = args.W
         self.K = args.K
         self.max_W = args.max_W
+        self.feature_type = '%s_features' %(args.feature_type.lower())
 
+        print 'Specified video_ids length', len(video_ids)
         # Precompute masks
         self.masks = np.zeros((self.max_W, self.W, self.K))
         for index in range(self.W):
@@ -273,8 +287,8 @@ class TrainSplit(DataSplit):
             vsplit_name = self.videoid_split_mappings[video_id]
             print 'gt timestamps', video_id, self.caption_data[vsplit_name][video_id]['timestamps']
              
-        features = self.features[video_id]['c3d_features']
-        #print 'Loading labels', video_id
+        print 'Loading labels', video_id
+        features = self.features[video_id][self.feature_type]
         labels = self.labels[video_id]
         #print 'Loaded labels', video_id, labels.shape
         nfeats = features.shape[0]
@@ -334,7 +348,7 @@ class EvaluateSplit(DataSplit):
         # Let's get the video_id and the features and labels
         video_id = self.video_ids[index]
         #features = self.features['v_' + video_id]['c3d_features']
-        features = self.f[video_id]['c3d_features']
+        features = self.features[video_id][sel.feature_type]
         duration = self.durations[video_id]
         gt_times = self.gt_times[video_id]
 

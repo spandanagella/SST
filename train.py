@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 
 import data
 import models
-from data import TrainSplit, EvaluateSplit
+from data import TrainSplit, EvaluateSplit, ActivityNet
 
 parser = argparse.ArgumentParser(description='video features to LSTM Language Model')
 
@@ -26,6 +26,8 @@ parser.add_argument('--labels', type=str, default='data/ActivityNet/labels.hdf5'
                     help='location of the proposal labels')
 parser.add_argument('--captions_path', type=str, default='data/ActivityNet/captions',
                     help='location of the proposal labels')
+parser.add_argument('--feature_type', type=str, default='C3D',
+                    help='c3d/r3d')
 parser.add_argument('--vid-ids', type=str, default='data/ActivityNet/video_ids.json',
                     help='location of the video ids')
 parser.add_argument('--save', type=str, default='data/models/default',
@@ -46,7 +48,7 @@ parser.add_argument('--rnn-type', type=str, default='GRU',
                     help='type of recurrent net (RNN_TANH, RNN_RELU, LSTM, GRU)')
 parser.add_argument('--rnn-num-layers', type=int, default=2,
                     help='Number of layers in rnn')
-parser.add_argument('--rnn-dropout', type=int, default=0.0,
+parser.add_argument('--rnn-dropout', type=int, default=0.2,
                     help='dropout used in rnn')
 parser.add_argument('--video-dim', type=int, default=500,
                     help='dimensions of video (C3D) features')
@@ -78,17 +80,17 @@ parser.add_argument('--num-samples', type=int, default=None,
                     help='Number of training samples to train with')
 parser.add_argument('--shuffle', type=int, default=1,
                     help='whether to shuffle the data')
-parser.add_argument('--nthreads', type=int, default=1,
+parser.add_argument('--nthreads', type=int, default=4,
                     help='number of worker threas used to load data')
 parser.add_argument('--resume', dest='resume', action='store_true',
                     help='reload the model')
 
 # Evaluate options
-parser.add_argument('--num-vids-eval', type=int, default=500,
+parser.add_argument('--num-vids-eval', type=int, default=100,
                     help='Number of videos to evaluate at each pass')
 parser.add_argument('--iou-threshold', type=float, default=0.5,
                     help='threshold above which we say something is positive')
-parser.add_argument('--num-proposals', type=int, default=None,
+parser.add_argument('--num-proposals', type=int, default=100,
                     help='number of top proposals to evaluate')
 args = parser.parse_args()
 
@@ -131,7 +133,8 @@ with open(os.path.join(args.save, 'args.json'), 'w') as f:
 ###############################################################################
 
 #print "| Loading data into corpus: %s" % args.data
-dataset = getattr(data, args.dataset)(args)
+#dataset = getattr(data, args.dataset)(args)
+dataset = ActivityNet(args)
 w1 = dataset.w1
 #train_dataset = TrainSplit(dataset.training_ids, dataset, args)
 #val_dataset = EvaluateSplit(dataset.validation_ids, dataset, args)
@@ -256,7 +259,8 @@ def train(epoch, w1):
         features = Variable(features)
         optimizer.zero_grad()
         proposals = model(features)
-        loss = model.compute_loss_with_BCE(proposals, masks, labels, w1)
+        #loss = model.compute_loss_with_BCE(proposals, masks, labels, w1)
+        loss = model.compute_loss(proposals, masks, labels)
         loss.backward()
         optimizer.step()
         # ratio of weights updates to debug 
